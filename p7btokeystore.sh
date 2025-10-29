@@ -3,50 +3,47 @@ echo "先生成csr,到myserve申请7b之后放到当前文件夹下再转换成p
 echo "请选择操作："
 echo "1. 生成服务端CSR（需交互输入CN值）"
 echo "2. 生成客户端CSR（需交互输入CN值）"
-echo "3. 转换P7B为PEM并打包成PKCS12"
+echo "3. 转换P7B为PEM并打包PKCS12"
 echo "4. 替换keystore中的alias证书(危险)"
 echo "5. (自签)生成ca"
 echo "6. (自签)生成客户端证书"
 echo "7. (自签)生成服务端证书"
 echo "8. (自签)nginx mtls配置文件样例"
+echo "9. (自签)生成keystore和truststore"
 read -p "输入选项（1或2或3或4）: " choice
 
 case $choice in
     1)
         # 生成CSR
         read -p "请输入证书的Common Name (CN)，例如 your.server.com: " cn_name
-        read -p "输入san(DNS:*.vvv.cn, DNS:*.sss.cn),域名为你想要client端能访问的域名: " san
-        read -p "请输入ca(your org): " ca
         if [ -z "$cn_name" ]; then
             echo "错误：CN不能为空！"
             exit 1
         fi
 
         # 生成私钥和CSR
-        openssl req -new -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj "/CN=$cn_name/OU=$ca" -addext "keyUsage = digitalSignature, keyEncipherment" -addext "extendedKeyUsage = serverAuth, clientAuth" -addext "subjectAltName = $san"
+        openssl req -new -newkey rsa:2048 -nodes -keyout server.key -out server.csr -subj "/CN=$cn_name/OU=VW" -addext "keyUsage = digitalSignature, keyEncipherment" -addext "extendedKeyUsage = serverAuth, clientAuth" -addext "subjectAltName = DNS:*.vwautocloud.cn, DNS:*.vwcloud.cn"
 
         echo "CSR生成成功！"
         echo "私钥文件: server.key"
         echo "CSR文件: server.csr"
-        echo "请去myserve平台将csr提交到自签证书SP申请处"
+        echo "请去myserve平台将csr提交到vwg自签证书SP申请处"
         ;;
     2)
         # 生成CSR
         read -p "请输入证书的Common Name (CN)，例如 your.server.com: " cn_name
-        read -p "输入san(DNS:*.vvv.cn, DNS:*.sss.cn),域名为你想要client端能访问的域名: " san
-        read -p "请输入ca(your org): " ca
         if [ -z "$cn_name" ]; then
             echo "错误：CN不能为空！"
             exit 1
         fi
 
         # 生成私钥和CSR
-        openssl req -new -newkey rsa:2048 -nodes -keyout client.key -out client.csr -subj "/CN=$cn_name/OU=$ca" -addext "keyUsage = digitalSignature, keyEncipherment" -addext "extendedKeyUsage = serverAuth, clientAuth" -addext "subjectAltName = $san"
+        openssl req -new -newkey rsa:2048 -nodes -keyout client.key -out client.csr -subj "/CN=$cn_name/OU=VW" -addext "keyUsage = digitalSignature, keyEncipherment" -addext "extendedKeyUsage = serverAuth, clientAuth" -addext "subjectAltName = DNS:*.vwautocloud.cn, DNS:*.vwcloud.cn"
 
         echo "CSR生成成功！"
         echo "私钥文件: client.key"
         echo "CSR文件: client.csr"
-        echo "请去myserve平台将csr提交到自签证书SP申请处"
+        echo "请去myserve平台将csr提交到vwg自签证书SP申请处"
         ;;
     3)
         echo "当前文件夹下文件:"
@@ -91,6 +88,7 @@ NAME
         else
           create="是"
         fi
+        
         echo "会删除keystore中已存在的同名alias证书文件,请谨慎操作!!!自动备份到./bakcert
 中"
                 
@@ -133,10 +131,11 @@ ient.crt -days 825 -sha256 -extfile <(printf "keyUsage=digitalSignature\nextende
     7)
         read -p "请输入cn(www.baidul.com): " cn
         read -p "请输入ca(your org): " ca
-        read -p "输入san(DNS:*.vvv.cn, DNS:*.sss.cn): " san
+        read -p "输入san(DNS:www.baidu.com): " san
         openssl genrsa -out server.key 4096
 
         openssl req -new -key server.key -out server.csr -subj "/CN=$cn/O=$ca"
+
 
         openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out se
 rver.crt -days 825 -sha256 -extfile <(printf "subjectAltName=$san\nkeyUsage=digitalSignat
@@ -177,6 +176,16 @@ server {
         }
     }
 EOF
+        ;;
+    9)
+        read -p "请输入密码: " password
+        read -p "请输入cn: " cn
+        read -p "请输入ca.crt位置: " ca
+        keytool -genkeypair -alias server -keyalg RSA -keysize 2048 -validity 365 -keysto
+re keystore.jks -storetype JKS -storepass $password -keypass $password -dname "CN=$cn, OU
+=IT, O=MyCompany, L=shanghai, ST=cn, C=China" 
+        keytool -importcert -alias trustedca -file $ca -keystore truststore.jks -storepas
+s $password -noprompt 
         ;;
     *)
         echo "错误：无效选项！"
